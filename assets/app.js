@@ -1,0 +1,141 @@
+(function(){
+  "use strict";
+  var $=function(s,c){return (c||document).querySelector(s);};
+  var $$=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+
+  /* mobile menu */
+  var burger=$("#burger"), menu=$("#menu");
+  if(burger&&menu){
+    burger.addEventListener("click",function(){
+      var open=menu.classList.toggle("open");
+      burger.setAttribute("aria-expanded",open?"true":"false");
+      burger.setAttribute("aria-label",open?"關閉選單":"開啟選單");
+    });
+    $$("a",menu).forEach(function(a){a.addEventListener("click",function(){menu.classList.remove("open");burger.setAttribute("aria-expanded","false");});});
+  }
+  // 行動選單覆蓋層樣式（簡易）
+  var st=document.createElement("style");
+  st.textContent='@media(max-width:1080px){.menu.open{display:flex;position:fixed;inset:60px 0 auto 0;flex-direction:column;gap:0;background:#fff;border-bottom:1px solid var(--line);padding:8px 20px 18px;box-shadow:var(--shadow);z-index:99}.menu.open a{padding:13px 4px;border-bottom:1px solid #f0f1f2;font-size:1.02rem}}';
+  document.head.appendChild(st);
+
+  /* accordion */
+  $$(".acc__q").forEach(function(q){
+    q.addEventListener("click",function(){
+      var open=q.getAttribute("aria-expanded")==="true";
+      var a=q.nextElementSibling;
+      q.setAttribute("aria-expanded",open?"false":"true");
+      a.style.maxHeight=open?null:a.scrollHeight+"px";
+    });
+  });
+
+  /* ===== 通用輪播：頁式 + 拖曳 + 箭頭 + 點 + 鍵盤（+自動輪播） ===== */
+  function initCarousel(track, dotsBox, arrowParent, autoplayMs){
+    if(!track)return;
+    var slides=$$(":scope > *",track);
+    var maxLeft=function(){return Math.max(0,track.scrollWidth-track.clientWidth);};
+    var step=function(){return slides.length>1?Math.max(1,Math.abs(slides[1].offsetLeft-slides[0].offsetLeft)):Math.max(1,track.clientWidth);};
+    var pageCount=function(){return maxLeft()<=2?1:Math.ceil(maxLeft()/step()-0.001)+1;};
+    var pageLeft=function(i){return Math.max(0,Math.min(i*step(),maxLeft()));};
+    var curPage=function(){var n=pageCount(),best=0,bd=1e9;for(var i=0;i<n;i++){var d=Math.abs(track.scrollLeft-pageLeft(i));if(d<bd){bd=d;best=i;}}return best;};
+    var anim=null;
+    function glide(t){t=Math.max(0,Math.min(t,maxLeft()));if(anim)cancelAnimationFrame(anim);var s=track.scrollLeft,d=t-s,t0=null,dur=420;if(Math.abs(d)<1){sync();return;}function fr(ts){if(!t0)t0=ts;var p=Math.min((ts-t0)/dur,1),e=1-Math.pow(1-p,3);track.scrollLeft=Math.round(s+d*e);if(p<1)anim=requestAnimationFrame(fr);else{anim=null;sync();}}anim=requestAnimationFrame(fr);}
+    function mkArrow(dir){var b=document.createElement("button");b.className="carrow carrow--"+dir;b.type="button";b.setAttribute("aria-label",dir==="prev"?"上一張":"下一張");b.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="'+(dir==="prev"?"M15 5l-7 7 7 7":"M9 5l7 7-7 7")+'" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';return b;}
+    var prev=mkArrow("prev"),next=mkArrow("next");
+    (arrowParent||track.parentNode).appendChild(prev);(arrowParent||track.parentNode).appendChild(next);
+    prev.addEventListener("click",function(){user();glide(pageLeft(curPage()-1));});
+    next.addEventListener("click",function(){user();glide(pageLeft(curPage()+1));});
+    var dots=[];
+    function buildDots(){if(!dotsBox)return;var n=pageCount();if(dots.length===n)return;dotsBox.innerHTML="";for(var k=0;k<n;k++){(function(i){var b=document.createElement("button");b.type="button";b.setAttribute("aria-label","第 "+(i+1)+" 張");b.addEventListener("click",function(){user();glide(pageLeft(i));});dotsBox.appendChild(b);})(k);}dots=$$("button",dotsBox);}
+    function sync(){var p=curPage();dots.forEach(function(d,i){i===p?d.setAttribute("aria-current","true"):d.removeAttribute("aria-current");});prev.disabled=track.scrollLeft<=2;next.disabled=track.scrollLeft>=maxLeft()-2;}
+    buildDots();sync();
+    track.addEventListener("scroll",sync,{passive:true});
+    var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){dots=[];buildDots();sync();},150);});
+    // 滑鼠拖曳
+    var down=false,sx=0,sl=0,moved=false;
+    track.addEventListener("pointerdown",function(e){if(e.pointerType!=="mouse")return;down=true;moved=false;sx=e.clientX;sl=track.scrollLeft;track.classList.add("grabbing");user();try{track.setPointerCapture(e.pointerId);}catch(_){}});
+    track.addEventListener("pointermove",function(e){if(!down)return;var dx=e.clientX-sx;if(Math.abs(dx)>4)moved=true;track.scrollLeft=sl-dx;});
+    function pUp(e){if(!down)return;down=false;track.classList.remove("grabbing");try{track.releasePointerCapture(e.pointerId);}catch(_){}}
+    track.addEventListener("pointerup",pUp);track.addEventListener("pointercancel",pUp);track.addEventListener("pointerleave",pUp);
+    track.addEventListener("click",function(e){if(moved){e.stopPropagation();e.preventDefault();}},true);
+    track.setAttribute("tabindex","0");track.setAttribute("role","group");track.setAttribute("aria-label","輪播，可拖曳或用箭頭切換");
+    track.addEventListener("keydown",function(e){if(e.key==="ArrowRight"){user();next.click();e.preventDefault();}else if(e.key==="ArrowLeft"){user();prev.click();e.preventDefault();}});
+    // 自動輪播
+    var timer=null;
+    function play(){if(!autoplayMs||pageCount()<2)return;stop();timer=setInterval(function(){if(document.hidden)return;var c=curPage();glide(pageLeft(c>=pageCount()-1?0:c+1));},autoplayMs);}
+    function stop(){if(timer){clearInterval(timer);timer=null;}}
+    var idle;function user(){stop();clearTimeout(idle);idle=setTimeout(play,7000);}
+    if(autoplayMs){track.addEventListener("mouseenter",stop);track.addEventListener("mouseleave",play);play();}
+  }
+  initCarousel($("#heroTrack"), $("#heroDots"), $(".hero"), 5500);
+
+  /* back to top */
+  var totop=$("#totop");
+  if(totop){window.addEventListener("scroll",function(){totop.classList.toggle("show",window.scrollY>window.innerHeight*0.8);},{passive:true});totop.addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});}
+
+  /* toast */
+  var toast=$("#toast"),tt;
+  function showToast(msg){if(!toast)return;toast.textContent=msg;toast.classList.add("show");clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove("show");},2000);}
+
+  /* 客服浮鈕（示範） */
+  var cs=$("#cs");
+  if(cs)cs.addEventListener("click",function(){showToast("線上客服為設計示範　謝謝你的喜歡！");});
+
+  /* ===== 購物車 / 結帳（純前端示範） ===== */
+  var body=document.body;
+  var CUR=body.getAttribute("data-currency")||"NT$";
+  var SHIP_FREE=parseInt(body.getAttribute("data-ship-free")||"990",10);
+  var SHIP_FEE=parseInt(body.getAttribute("data-ship-fee")||"120",10);
+  var ADD_LABEL=body.getAttribute("data-add-label")||"已加入購物車";
+  var CART_TITLE=body.getAttribute("data-cart-title")||"購物車";
+  var cart=[];
+  function money(n){return CUR+" "+Number(n).toLocaleString("en-US");}
+  function totals(){var sub=cart.reduce(function(a,i){return a+i.price*i.qty;},0);var ship=cart.length?(sub>=SHIP_FREE?0:SHIP_FEE):0;return {sub:sub,ship:ship,total:sub+ship,count:cart.reduce(function(a,i){return a+i.qty;},0)};}
+
+  var bag='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8V6a3 3 0 016 0v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  var cartBtn=document.createElement("button");cartBtn.className="cartbtn";cartBtn.id="cartBtn";cartBtn.setAttribute("aria-label","開啟購物車");
+  cartBtn.innerHTML=bag+'<span class="cartbtn__n" id="cartCount" aria-hidden="true">0</span>';
+  var navIn=$(".nav__in");if(navIn){navIn.insertBefore(cartBtn,$("#burger")||null);}
+
+  var wrap=document.createElement("div");wrap.className="cartmodal";wrap.id="cartModal";
+  wrap.innerHTML='<div class="cartmodal__ov" id="cartOv"></div><aside class="cartdrawer" role="dialog" aria-modal="true" aria-label="'+CART_TITLE+'" id="cartDrawer"><div class="cartdrawer__hd"><h3 id="cartHdTitle">'+CART_TITLE+'</h3><button class="cartdrawer__x" id="cartClose" aria-label="關閉"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div class="cartdrawer__bd" id="cartBody"></div></aside>';
+  body.appendChild(wrap);
+  var modal=$("#cartModal"),drawer=$("#cartDrawer"),cartBody=$("#cartBody"),cartCount=$("#cartCount"),hdTitle=$("#cartHdTitle");
+  var view="cart",lastOrder=null;
+  function openCart(){modal.classList.add("open");body.style.overflow="hidden";render();var f=drawer.querySelector("button,input,a");if(f)f.focus();}
+  function closeCart(){modal.classList.remove("open");body.style.overflow="";if(view==="done"){cart=[];view="cart";updateBadge();}cartBtn.focus();}
+  function updateBadge(){var t=totals();cartCount.textContent=t.count;cartBtn.classList.toggle("has",t.count>0);}
+  function lineRow(it,idx){return '<div class="cline"><div class="cline__main"><span class="cline__name">'+it.name+'</span><span class="cline__price">'+money(it.price)+'</span></div><div class="cline__ctl"><div class="qty"><button class="qty__b" data-act="dec" data-i="'+idx+'" aria-label="減少">−</button><span class="qty__n">'+it.qty+'</span><button class="qty__b" data-act="inc" data-i="'+idx+'" aria-label="增加">+</button></div><span class="cline__sum">'+money(it.price*it.qty)+'</span><button class="cline__rm" data-act="rm" data-i="'+idx+'" aria-label="移除">移除</button></div></div>';}
+  function render(){
+    var t=totals();
+    if(view==="cart"){
+      hdTitle.textContent=CART_TITLE;
+      if(!cart.length){cartBody.innerHTML='<div class="cempty"><p>購物車目前是空的</p><button class="btn--cta" id="goShop">去逛果醬</button></div>';$("#goShop").addEventListener("click",function(){closeCart();var m=$("#jams");if(m)m.scrollIntoView({behavior:"smooth"});});return;}
+      cartBody.innerHTML='<div class="clines">'+cart.map(lineRow).join("")+'</div><div class="csum"><div class="csum__row"><span>小計</span><span>'+money(t.sub)+'</span></div><div class="csum__row"><span>運費'+(t.ship===0?'（已達免運）':'')+'</span><span>'+(t.ship===0?'免運':money(t.ship))+'</span></div>'+(t.ship!==0?'<p class="csum__hint">再買 '+money(SHIP_FREE-t.sub)+' 即可免運</p>':'')+'<div class="csum__row csum__total"><span>合計</span><span>'+money(t.total)+'</span></div></div><button class="cbtn-full" id="toCheckout">前往結帳</button><p class="cnote">這是設計作品示範，不會真的收費或出貨。</p>';
+      $("#toCheckout").addEventListener("click",function(){view="checkout";render();});
+    } else if(view==="checkout"){
+      hdTitle.textContent="結帳";
+      cartBody.innerHTML='<form class="cform" id="coForm" novalidate><div class="cobanner">示範結帳：以下不會真的送出、收費或出貨。</div><label class="cfield"><span>收件人姓名</span><input type="text" name="name" autocomplete="off" placeholder="例：王小明" required></label><fieldset class="cfield"><legend>配送方式</legend><label class="copt"><input type="radio" name="ship" value="宅配到府" checked><span>宅配到府</span></label><label class="copt"><input type="radio" name="ship" value="超商取貨"><span>超商取貨</span></label></fieldset><fieldset class="cfield"><legend>付款方式</legend><label class="copt"><input type="radio" name="pay" value="貨到付款" checked><span>貨到付款</span></label><label class="copt"><input type="radio" name="pay" value="信用卡（示範）"><span>信用卡（示範，不收款）</span></label></fieldset><label class="cfield"><span>訂單備註（選填）</span><textarea name="note" rows="2" placeholder="想跟我們說的話"></textarea></label><div class="csum csum--mini"><div class="csum__row"><span>商品（'+t.count+' 件）</span><span>'+money(t.sub)+'</span></div><div class="csum__row"><span>運費</span><span>'+(t.ship===0?'免運':money(t.ship))+'</span></div><div class="csum__row csum__total"><span>應付金額</span><span>'+money(t.total)+'</span></div></div><div class="cactions"><button type="button" id="backCart">返回購物車</button><button type="submit">送出訂單（示範）</button></div></form>';
+      $("#backCart").addEventListener("click",function(){view="cart";render();});
+      $("#coForm").addEventListener("submit",function(e){e.preventDefault();var f=e.target;if(!f.name.value.trim()){f.name.focus();f.name.classList.add("err");return;}var no="ORD"+Date.now().toString().slice(-8);lastOrder={no:no,name:f.name.value.trim(),ship:f.ship.value,pay:f.pay.value,note:f.note.value.trim(),items:cart.slice(),t:totals()};view="done";render();});
+    } else if(view==="done"){
+      hdTitle.textContent="訂單完成";var o=lastOrder;
+      var rows=o.items.map(function(i){return '<div class="csum__row"><span>'+i.name+' ×'+i.qty+'</span><span>'+money(i.price*i.qty)+'</span></div>';}).join("");
+      cartBody.innerHTML='<div class="cdone"><div class="cdone__ic"><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="3"/><path d="M15 24l6 6 12-13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h4>訂單已成立</h4><p class="cdone__no">訂單編號　'+o.no+'</p><div class="cdone__card"><div class="csum__row"><span>收件人</span><span>'+o.name+'</span></div><div class="csum__row"><span>配送方式</span><span>'+o.ship+'</span></div><div class="csum__row"><span>付款方式</span><span>'+o.pay+'</span></div>'+(o.note?'<div class="csum__row"><span>備註</span><span>'+o.note+'</span></div>':'')+'<hr class="cdone__hr">'+rows+'<div class="csum__row"><span>運費</span><span>'+(o.t.ship===0?'免運':money(o.t.ship))+'</span></div><div class="csum__row csum__total"><span>實付金額</span><span>'+money(o.t.total)+'</span></div></div><p class="cnote">這是設計作品示範，不會真的成立訂單、收費或出貨。</p><button class="cbtn-full" id="doneClose">繼續逛逛</button></div>';
+      $("#doneClose").addEventListener("click",closeCart);
+    }
+  }
+  cartBody.addEventListener("click",function(e){var b=e.target.closest("[data-act]");if(!b)return;var act=b.getAttribute("data-act"),i=parseInt(b.getAttribute("data-i"),10);if(act==="inc")cart[i].qty++;else if(act==="dec"){cart[i].qty--;if(cart[i].qty<=0)cart.splice(i,1);}else if(act==="rm")cart.splice(i,1);updateBadge();render();});
+  function addItem(name,price,qty){qty=qty||1;var ex=cart.filter(function(i){return i.name===name&&i.price===price;})[0];if(ex)ex.qty+=qty;else cart.push({name:name,price:price,qty:qty});updateBadge();}
+  function priceFrom(btn){if(btn.getAttribute("data-price"))return parseInt(btn.getAttribute("data-price"),10);var card=btn.closest("article")||btn.closest("section")||btn.parentElement;var el=card&&(card.querySelector(".price"));if(!el)return NaN;return parseInt(el.textContent.replace(/[^\d]/g,""),10);}
+  $$(".add").forEach(function(btn){btn.addEventListener("click",function(e){e.preventDefault();var name=btn.getAttribute("data-name")||"商品";var price=priceFrom(btn);if(isNaN(price)){view="cart";openCart();return;}addItem(name,price,1);showToast(ADD_LABEL+"："+name);view="cart";openCart();});});
+  cartBtn.addEventListener("click",function(){view="cart";openCart();});
+  $("#cartClose").addEventListener("click",closeCart);
+  $("#cartOv").addEventListener("click",closeCart);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modal.classList.contains("open"))closeCart();});
+  updateBadge();
+
+  /* scroll reveal */
+  var targets=$$(".pcard, .why__item, .secttl, .secsub");
+  targets.forEach(function(t){t.classList.add("reveal");});
+  if("IntersectionObserver" in window){var ro=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");ro.unobserve(e.target);}});},{threshold:.12});targets.forEach(function(t){ro.observe(t);});}else{targets.forEach(function(t){t.classList.add("in");});}
+})();
