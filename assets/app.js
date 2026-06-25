@@ -13,10 +13,7 @@
     });
     $$("a",menu).forEach(function(a){a.addEventListener("click",function(){menu.classList.remove("open");burger.setAttribute("aria-expanded","false");});});
   }
-  // 行動選單覆蓋層樣式（簡易）
-  var st=document.createElement("style");
-  st.textContent='@media(max-width:1080px){.menu.open{display:flex;position:fixed;inset:60px 0 auto 0;flex-direction:column;gap:0;background:#fff;border-bottom:1px solid var(--line);padding:8px 20px 18px;box-shadow:var(--shadow);z-index:99}.menu.open a{padding:13px 4px;border-bottom:1px solid #f0f1f2;font-size:1.02rem}}';
-  document.head.appendChild(st);
+  // 選單抽屜樣式由 CSS 處理（漢堡常駐）
 
   /* accordion */
   $$(".acc__q").forEach(function(q){
@@ -47,14 +44,15 @@
     var dots=[];
     function buildDots(){if(!dotsBox)return;var n=pageCount();if(dots.length===n)return;dotsBox.innerHTML="";for(var k=0;k<n;k++){(function(i){var b=document.createElement("button");b.type="button";b.setAttribute("aria-label","第 "+(i+1)+" 張");b.addEventListener("click",function(){user();glide(pageLeft(i));});dotsBox.appendChild(b);})(k);}dots=$$("button",dotsBox);}
     function sync(){var p=curPage();dots.forEach(function(d,i){i===p?d.setAttribute("aria-current","true"):d.removeAttribute("aria-current");});prev.disabled=track.scrollLeft<=2;next.disabled=track.scrollLeft>=maxLeft()-2;}
+    var snapT;function snapIdle(){clearTimeout(snapT);snapT=setTimeout(function(){if(anim||down)return;var t=pageLeft(curPage());if(Math.abs(track.scrollLeft-t)>2)glide(t);},120);}
     buildDots();sync();
-    track.addEventListener("scroll",sync,{passive:true});
+    track.addEventListener("scroll",function(){sync();snapIdle();},{passive:true});
     var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){dots=[];buildDots();sync();},150);});
     // 滑鼠拖曳
     var down=false,sx=0,sl=0,moved=false;
     track.addEventListener("pointerdown",function(e){if(e.pointerType!=="mouse")return;down=true;moved=false;sx=e.clientX;sl=track.scrollLeft;track.classList.add("grabbing");user();try{track.setPointerCapture(e.pointerId);}catch(_){}});
     track.addEventListener("pointermove",function(e){if(!down)return;var dx=e.clientX-sx;if(Math.abs(dx)>4)moved=true;track.scrollLeft=sl-dx;});
-    function pUp(e){if(!down)return;down=false;track.classList.remove("grabbing");try{track.releasePointerCapture(e.pointerId);}catch(_){}}
+    function pUp(e){if(!down)return;down=false;track.classList.remove("grabbing");try{track.releasePointerCapture(e.pointerId);}catch(_){}if(moved)glide(pageLeft(curPage()));}
     track.addEventListener("pointerup",pUp);track.addEventListener("pointercancel",pUp);track.addEventListener("pointerleave",pUp);
     track.addEventListener("click",function(e){if(moved){e.stopPropagation();e.preventDefault();}},true);
     track.setAttribute("tabindex","0");track.setAttribute("role","group");track.setAttribute("aria-label","輪播，可拖曳或用箭頭切換");
@@ -94,7 +92,7 @@
   var bag='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8V6a3 3 0 016 0v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   var cartBtn=document.createElement("button");cartBtn.className="cartbtn";cartBtn.id="cartBtn";cartBtn.setAttribute("aria-label","開啟購物車");
   cartBtn.innerHTML=bag+'<span class="cartbtn__n" id="cartCount" aria-hidden="true">0</span>';
-  var navIn=$(".nav__in");if(navIn){navIn.insertBefore(cartBtn,$("#burger")||null);}
+  var navIn=$(".nav__in");if(navIn){navIn.appendChild(cartBtn);}
 
   var wrap=document.createElement("div");wrap.className="cartmodal";wrap.id="cartModal";
   wrap.innerHTML='<div class="cartmodal__ov" id="cartOv"></div><aside class="cartdrawer" role="dialog" aria-modal="true" aria-label="'+CART_TITLE+'" id="cartDrawer"><div class="cartdrawer__hd"><h3 id="cartHdTitle">'+CART_TITLE+'</h3><button class="cartdrawer__x" id="cartClose" aria-label="關閉"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div class="cartdrawer__bd" id="cartBody"></div></aside>';
@@ -110,8 +108,9 @@
     if(view==="cart"){
       hdTitle.textContent=CART_TITLE;
       if(!cart.length){cartBody.innerHTML='<div class="cempty"><p>購物車目前是空的</p><button class="btn--cta" id="goShop">去逛果醬</button></div>';$("#goShop").addEventListener("click",function(){closeCart();var m=$("#jams");if(m)m.scrollIntoView({behavior:"smooth"});});return;}
-      cartBody.innerHTML='<div class="clines">'+cart.map(lineRow).join("")+'</div><div class="csum"><div class="csum__row"><span>小計</span><span>'+money(t.sub)+'</span></div><div class="csum__row"><span>運費'+(t.ship===0?'（已達免運）':'')+'</span><span>'+(t.ship===0?'免運':money(t.ship))+'</span></div>'+(t.ship!==0?'<p class="csum__hint">再買 '+money(SHIP_FREE-t.sub)+' 即可免運</p>':'')+'<div class="csum__row csum__total"><span>合計</span><span>'+money(t.total)+'</span></div></div><button class="cbtn-full" id="toCheckout">前往結帳</button><p class="cnote">這是設計作品示範，不會真的收費或出貨。</p>';
+      cartBody.innerHTML='<div class="clines">'+cart.map(lineRow).join("")+'</div><div class="csum"><div class="csum__row"><span>小計</span><span>'+money(t.sub)+'</span></div><div class="csum__row"><span>運費'+(t.ship===0?'（已達免運）':'')+'</span><span>'+(t.ship===0?'免運':money(t.ship))+'</span></div>'+(t.ship!==0?'<p class="csum__hint">再買 '+money(SHIP_FREE-t.sub)+' 即可免運</p>':'')+'<div class="csum__row csum__total"><span>合計</span><span>'+money(t.total)+'</span></div></div><button class="cbtn-full" id="toCheckout">前往結帳</button><button class="cbtn-ghost" id="keepShop">繼續購物</button><p class="cnote">這是設計作品示範，不會真的收費或出貨。</p>';
       $("#toCheckout").addEventListener("click",function(){view="checkout";render();});
+      $("#keepShop").addEventListener("click",closeCart);
     } else if(view==="checkout"){
       hdTitle.textContent="結帳";
       cartBody.innerHTML='<form class="cform" id="coForm" novalidate><div class="cobanner">示範結帳：以下不會真的送出、收費或出貨。</div><label class="cfield"><span>收件人姓名</span><input type="text" name="name" autocomplete="off" placeholder="例：王小明" required></label><fieldset class="cfield"><legend>配送方式</legend><label class="copt"><input type="radio" name="ship" value="宅配到府" checked><span>宅配到府</span></label><label class="copt"><input type="radio" name="ship" value="超商取貨"><span>超商取貨</span></label></fieldset><fieldset class="cfield"><legend>付款方式</legend><label class="copt"><input type="radio" name="pay" value="貨到付款" checked><span>貨到付款</span></label><label class="copt"><input type="radio" name="pay" value="信用卡（示範）"><span>信用卡（示範，不收款）</span></label></fieldset><label class="cfield"><span>訂單備註（選填）</span><textarea name="note" rows="2" placeholder="想跟我們說的話"></textarea></label><div class="csum csum--mini"><div class="csum__row"><span>商品（'+t.count+' 件）</span><span>'+money(t.sub)+'</span></div><div class="csum__row"><span>運費</span><span>'+(t.ship===0?'免運':money(t.ship))+'</span></div><div class="csum__row csum__total"><span>應付金額</span><span>'+money(t.total)+'</span></div></div><div class="cactions"><button type="button" id="backCart">返回購物車</button><button type="submit">送出訂單（示範）</button></div></form>';

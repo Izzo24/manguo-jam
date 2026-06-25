@@ -19,16 +19,16 @@ p{text-wrap:pretty}
 
 /* nav */
 .nav{position:sticky;top:0;z-index:100;background:var(--panel);border-bottom:1px solid var(--line)}
-.nav__in{display:flex;align-items:center;gap:14px;height:60px}
+.nav__in{display:flex;align-items:center;justify-content:space-between;gap:14px;height:60px}
 .brand{display:flex;align-items:center;gap:10px}
 .brand__mk{display:inline-flex}
 .brand__tx{display:flex;flex-direction:column;line-height:1.05;gap:3px}
 .brand__tx b{font-family:var(--disp);font-size:1.18rem;font-weight:500;color:var(--title);letter-spacing:.01em}
 .brand__tx i{font-style:normal;font-weight:500;font-size:.6rem;letter-spacing:.26em;color:var(--accent)}
-.menu{display:flex;margin-left:auto;gap:clamp(3px,.55vw,9px)}
+.menu{display:none;gap:clamp(3px,.55vw,9px)}
 .menu a{font-size:.92rem;font-weight:400;color:var(--ink);padding:8px 12px;border-radius:8px;transition:.18s}
 .menu a:hover{color:var(--accent);background:oklch(0.966 0.0146 44.18)}
-.burger{display:none;flex-direction:column;gap:5px;width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:oklch(1 0 0);cursor:pointer;align-items:center;justify-content:center;margin-left:8px}
+.burger{display:flex;flex-direction:column;gap:5px;width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:oklch(1 0 0);cursor:pointer;align-items:center;justify-content:center;flex:none}
 .burger span{width:21px;height:2.2px;background:var(--title);border-radius:2px;transition:.25s}
 .burger[aria-expanded="true"] span:nth-child(1){transform:translateY(7.2px) rotate(45deg)}
 .burger[aria-expanded="true"] span:nth-child(2){opacity:0}
@@ -142,7 +142,11 @@ p{text-wrap:pretty}
 .reveal{opacity:0;transform:translateY(20px);transition:opacity .6s ease,transform .6s ease}
 .reveal.in{opacity:1;transform:none}
 
-@media(max-width:1080px){.menu{display:none}.burger{display:flex}}
+/* nav：漢堡常駐左、logo 置中、購物車右、space-between；選單為下拉抽屜 */
+.nav__in{position:relative}
+.nav__in .brand{position:absolute;left:50%;transform:translateX(-50%)}
+.menu.open{display:flex;position:fixed;inset:60px 0 auto 0;flex-direction:column;gap:0;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 20px 18px;box-shadow:var(--shadow);z-index:99}
+.menu.open a{padding:13px 4px;border-bottom:1px solid var(--line);font-size:1.04rem}
 @media(max-width:860px){
   .pgrid{grid-template-columns:1fr}
   .why__in{grid-template-columns:1fr}
@@ -164,7 +168,7 @@ p{text-wrap:pretty}
 .btn--block{width:100%}
 
 /* ===== 購物車 / 結帳 ===== */
-.cartbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:1px solid var(--c-line);background:var(--c-panel);color:var(--c-ink);cursor:pointer;transition:.2s;flex:none;margin-left:8px}
+.cartbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:1px solid var(--c-line);background:var(--c-panel);color:var(--c-ink);cursor:pointer;transition:.2s;flex:none;margin-left:0}
 .cartbtn:hover{color:var(--c-accent);border-color:var(--c-accent)}
 .cartbtn__n{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--c-accent);color:var(--c-onacc);font-size:.72rem;font-weight:500;display:flex;align-items:center;justify-content:center;line-height:1;transform:scale(0);transition:.2s}
 .cartbtn.has .cartbtn__n{transform:scale(1)}
@@ -201,6 +205,8 @@ p{text-wrap:pretty}
 .csum__hint{font-size:.82rem;color:var(--c-accent);margin:2px 0 0;text-align:right}
 .cbtn-full{width:100%;margin-top:16px;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--c-accent);color:oklch(1 0 0);border:none;border-radius:30px;padding:13px 20px;font-family:var(--tc);font-weight:500;font-size:1rem;cursor:pointer;transition:.2s}
 .cbtn-full:hover{background:var(--accent-d)}
+.cbtn-ghost{width:100%;margin-top:10px;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--c-ink);border:1px solid var(--c-line);border-radius:30px;padding:11px 20px;font-family:var(--tc);font-weight:500;font-size:.98rem;cursor:pointer;transition:.2s}
+.cbtn-ghost:hover{border-color:var(--accent);color:var(--accent)}
 .cnote{font-size:.78rem;color:var(--c-muted);text-align:center;margin-top:12px}
 .cform{display:flex;flex-direction:column;gap:16px}
 .cobanner{background:var(--c-panel);border:1px dashed var(--c-accent);color:var(--c-ink);font-size:.85rem;padding:10px 14px;border-radius:10px}
